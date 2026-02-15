@@ -1,4 +1,4 @@
-# Vocalino V0.1: Voice Acting Pipeline
+# Vocalino V 0.1: Voice Acting Pipeline
 
 **The first fully open-source voice acting pipeline that combines zero-shot voice cloning with natural language performance direction.** Vocalino allows you to provide a reference voice (or generate one from scratch) and use free-form text instructions to direct *how* the line is performed. It generates speech that maintains strict voice consistency with your reference audio while adhering to your specific emotional and stylistic prompts—giving you total control over the actor and the performance without any model training.
 
@@ -234,4 +234,5 @@ Set `return_intermediate: true` to also receive the raw TTS output (before voice
 - Qwen3-TTS: Apache 2.0
 - Chatterbox: MIT
 - This pipeline code: MIT
+
 
