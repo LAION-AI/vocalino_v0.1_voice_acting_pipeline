@@ -1,0 +1,209 @@
+================================================================================
+  Voice Studio — Inference Optimization Plan
+  Created: 2026-02-16
+  Last updated: 2026-02-16
+================================================================================
+
+CURRENT ARCHITECTURE
+--------------------
+- Qwen3-TTS VoiceDesign (1.7B params, bfloat16 or INT8) — autoregressive codec
+- Seed-VC V2 (CFM diffusion + AR style transfer) — voice conversion
+- ECAPA-TDNN speaker encoder (2048-dim) — similarity ranking
+- Configurable: single GPU or multi-GPU (TTS_DEVICE, VC_DEVICE env vars)
+- FastAPI + Uvicorn, SSE streaming, batched TTS
+
+OPTIMIZED PIPELINE (K=3 ranked, batched TTS)
+---------------------------------------------
+  [TTS_batch(3): ~65s] -> [VC1: ~8s] -> [VC2: ~8s] -> [VC3: ~8s] -> Embed (cached)
+  Total: ~90s wall-clock (was ~160s sequential)
+  First result via SSE: ~73s
+
+
+================================================================================
+  TIER 1 — Quick Wins                                         [STATUS: DONE]
+================================================================================
+
+1a. flash-attn
+    - Installed but FAILS to import (GLIBC_2.32 not found on this system).
+    - Model falls back to SDPA attention (still fast, just not flash-attn).
+    - FIX: upgrade glibc or build flash-attn from source.
+
+1b. Reduce VC diffusion steps  [IMPLEMENTED]
+    - Default changed from 25 → 12 in all schemas (VCRequest, CombinedRequest,
+      RankedPipelineRequest).  Also configurable via DEFAULT_DIFF_STEPS env var.
+    - CFM converges in 10-15 steps for near-identical quality.
+    - Measured: VC time dropped from ~15s to ~8s per candidate (~47% reduction).
+
+1c. Speaker embedding LRU cache  [IMPLEMENTED]
+    - LRU dict (max EMB_CACHE_SIZE entries, default 32) keyed by SHA-256 of
+      the raw base64 audio bytes.
+    - Repeated requests with the same reference audio skip the mel spectrogram
+      computation and ECAPA-TDNN forward pass entirely.
+
+
+================================================================================
+  TIER 2 — SSE Streaming                                      [STATUS: DONE]
+================================================================================
+
+2a. Server-Sent Events  [IMPLEMENTED]
+    - POST /pipeline/ranked-stream returns text/event-stream.
+    - Generator runs in run_in_executor (thread pool) so the async event loop
+      can flush data between candidates instead of buffering.
+    - Three event types: "progress" (TTS batch done), "candidate" (one result),
+      "done" (final summary with best_id).
+
+2b. UI SSE consumption  [IMPLEMENTED]
+    - Uses fetch() + ReadableStream to parse SSE events incrementally.
+    - Each candidate row renders as it arrives.
+    - After all candidates arrive, DOM is re-sorted by similarity, best highlighted.
+    - Progress text updates: "Generating 3 TTS samples (batched)..."
+      → "TTS batch done (3 samples in 65s). Converting voices (0/3)..."
+      → "Converting voices (2/3)..."
+
+
+================================================================================
+  TIER 3 — Pipeline Parallelism                   [STATUS: SUPERSEDED BY T4]
+================================================================================
+
+3a. Overlap TTS and VC using threading
+    - Original plan: run VC[i] in background while TTS[i+1] generates.
+    - SUPERSEDED: Tier 4 TTS batching achieves a better result:
+        [TTS_batch(K)] → VC1 → VC2 → VC3
+      Batch TTS produces all K outputs in ~1.5x single-call time (~65s vs 3×45s),
+      so there's nothing to overlap — TTS finishes before VC starts.
+    - On a single GPU, threading provides no benefit since both TTS and VC
+      compete for the same GPU resources.
+    - On multi-GPU, TTS and VC are on different devices, but since we batch
+      TTS first and then run VCs sequentially, the timeline is the same.
+
+3b. asyncio + run_in_executor  [IMPLEMENTED]
+    - The SSE event_generator uses asyncio.get_event_loop().run_in_executor()
+      to pull items from the blocking generator in a thread pool.
+    - This keeps the event loop responsive for concurrent requests and SSE
+      data flushing.
+
+
+================================================================================
+  TIER 4 — True Batching                                [STATUS: DONE (TTS)]
+================================================================================
+
+4a. TTS batching  [IMPLEMENTED]
+    - generate_voice_design() accepts List[str] for text/instruct/language.
+    - We pass K copies of the same prompt:
+        text=[req.text] * K, instruct=[req.style_prompt] * K, language=[...] * K
+    - The model tokenizes each, left-pads to equal length, runs a single batched
+      forward pass through the autoregressive decoder.
+    - Each output differs due to stochastic sampling (do_sample=True, temp=0.9).
+    - Measured: K=3 TTS batch takes ~65s vs 3×45s=135s sequential (~2x speedup).
+    - Also implemented for /voice-design/batch endpoint.
+    - SSE streaming sends "progress" event when TTS batch completes.
+
+4b. VC batching  [NOT IMPLEMENTED — high effort, limited API support]
+    - The CFM diffusion model natively supports batched inference (batch dim
+      is handled throughout the DIT transformer).
+    - HOWEVER: the Seed-VC wrapper API (convert_voice_with_streaming) only
+      accepts single source/target pairs.  The AR model's generate() method is
+      hardcoded for batch_size=1.
+    - Refactoring would require:
+      * New wrapper method accepting list of (source, target) pairs
+      * Batched feature extraction pipeline
+      * AR generate() refactor for batch token generation
+    - Estimated effort: 4-6 hours of Seed-VC internals refactoring.
+    - Impact: ~3x VC throughput (K=3 VC in ~10s instead of ~24s).
+
+4c. Speaker embedding batching  [DEFERRED]
+    - Straightforward: stack K mel spectrograms, one ECAPA-TDNN forward pass.
+    - Deferred because individual embedding computation is <0.1s (negligible).
+    - Can be added if VC batching is implemented (both would then need batch).
+
+
+================================================================================
+  TIER 5 — Inference Engine Upgrades                   [STATUS: PARTIAL]
+================================================================================
+
+5a. torch.compile  [SKIPPED — known issues with Qwen models]
+    - Multiple documented compatibility issues:
+      * Qwen3-32B: custom rotary embedding ops break torch.compile graph
+        (vllm #22453, closed NOT_PLANNED)
+      * PyTorch #120462: torch.compile degrades Qwen output quality
+      * PyTorch 2.9: crash with block pointers (pytorch forums)
+    - The vLLM-Omni team's official Qwen3-TTS launch uses --enforce-eager
+      (disables torch.compile entirely).
+    - RECOMMENDATION: Do not use torch.compile with Qwen3-TTS.
+      Use CUDA Graph acceleration (via vLLM-Omni) instead when available.
+
+5b. Multi-GPU split  [IMPLEMENTED]
+    - Server supports TTS_DEVICE, VC_DEVICE, SE_DEVICE environment variables.
+    - Example: CUDA_VISIBLE_DEVICES=0,1 VC_DEVICE=cuda:1 python server.py
+    - Each model loads onto its designated device.  Audio transfers between
+      devices happen via CPU numpy arrays (negligible overhead for audio data).
+    - Benefits:
+      * Eliminates VRAM contention between TTS (~15 GB) and VC (~6 GB)
+      * Enables concurrent request handling without GPU memory competition
+      * Frees VRAM on each GPU for larger batch sizes
+    - Timeline is same as single-GPU for a single request (batch TTS → seq VC),
+      but concurrent requests benefit from independent GPU resources.
+
+5c. vLLM-Omni for TTS serving  [NOT IMPLEMENTED — future option]
+    - Qwen3-TTS is supported through vLLM-Omni (NOT standard vLLM).
+    - vLLM-Omni provides:
+      * Disaggregated two-stage pipeline (Talker AR model + codec decoder)
+      * Continuous batching for concurrent requests
+      * CUDA Graph acceleration (~26% latency, ~36% throughput improvement)
+      * OpenAI-compatible API (POST /v1/audio/speech)
+    - Install: pip install vllm-omni
+    - Launch: vllm serve Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign \
+        --stage-configs-path vllm_omni/.../qwen3_tts.yaml \
+        --omni --port 8091 --trust-remote-code --enforce-eager
+    - NOTE: --enforce-eager is REQUIRED (torch.compile incompatible).
+    - Status (Feb 2026): streaming audio not yet production-ready.
+      Disaggregated pipeline and CUDA Graphs in progress.
+    - RECOMMENDATION: Adopt vLLM-Omni when streaming support lands.
+
+5d. INT8 quantization  [IMPLEMENTED]
+    - Uses bitsandbytes (0.45.5) INT8 quantization for linear layers.
+    - Enable: TTS_QUANTIZE=int8 python server.py
+    - Reduces TTS VRAM from ~15 GB to ~7 GB with minimal quality impact.
+    - The codec token decoder and speech tokenizer remain full precision.
+    - Quality: near-identical for TTS since output is discrete codec tokens
+      (quantization noise is masked by the discrete vocabulary).
+    - INT4 quantization (AWQ/GPTQ) not yet tested for Qwen3-TTS.
+      Wait for published quantized weights or community benchmarks.
+
+
+================================================================================
+  IMPACT SUMMARY (revised with actual measurements)
+================================================================================
+
+  Optimization             | Effort   | Status       | K=3 measured/estimated
+  -------------------------+----------+--------------+-----------------------
+  Baseline (sequential)    | —        | —            | ~160s
+  + VC steps 25->12        | 1 min    | DONE         | ~120s (VC: 15s→8s)
+  + Embed cache            | 10 min   | DONE         | ~120s (saves ~1s/repeat)
+  + SSE streaming          | 1 hr     | DONE         | first: ~53s
+  + TTS batching           | 2 hr     | DONE         | ~90s (TTS: 135s→65s)
+  + INT8 quantization      | 10 min   | DONE (opt-in)| ~90s* (VRAM: 15→7 GB)
+  + Multi-GPU split        | 30 min   | DONE (opt-in)| ~90s** (VRAM isolation)
+  + VC batching            | 4-6 hr   | TODO         | ~75s (VC: 24s→10s est.)
+  + vLLM-Omni             | 1 day    | FUTURE       | ~45s est.
+
+  * INT8 timing is similar; main benefit is VRAM reduction
+  ** Multi-GPU doesn't reduce single-request time but enables concurrency
+
+  ACTUAL K=3 TIMELINE (batched, single GPU):
+    [TTS batch: ~65s] → [VC1: ~8s] → [VC2: ~8s] → [VC3: ~8s] = ~90s
+    First SSE result: ~73s   Last SSE result: ~90s
+
+
+================================================================================
+  IMPLEMENTATION ORDER (completed)
+================================================================================
+
+  Phase 1: Tier 1 + Tier 2 (SSE)              — DONE
+  Phase 2: Tier 4a (TTS batching)              — DONE (supersedes Tier 3)
+  Phase 3: Tier 5b + 5d (multi-GPU + INT8)     — DONE
+  Phase 4: Tier 5a (torch.compile)             — SKIPPED (Qwen incompatible)
+
+  Remaining (future):
+  Phase 5: Tier 4b (VC batching)               — requires Seed-VC refactoring
+  Phase 6: Tier 5c (vLLM-Omni)                — when streaming support is ready

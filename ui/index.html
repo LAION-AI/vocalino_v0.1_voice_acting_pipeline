@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voice Studio</title>
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #13131d;
+  --card: #1a1a28;
+  --border: #2a2a3a;
+  --text: #e0e0e8;
+  --muted: #888;
+  --accent: #e07b4a;
+  --accent2: #4a9ee0;
+  --green: #4ae07b;
+  --red: #e04a4a;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── Header ────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+header h1 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.server-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.server-bar input {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.4rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  width: 280px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--red);
+  transition: background 0.3s;
+}
+
+.status-dot.connected { background: var(--green); }
+.status-dot.checking { background: #e0c74a; }
+
+/* ── Layout ────────────────────────────────────────────── */
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* ── Card / Section ────────────────────────────────────── */
+.section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 1.2rem;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+
+.section-header h2 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.section-header .tag {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.tag-compact { background: #2a2a40; color: var(--accent); }
+.tag-main { background: #1a2a3a; color: var(--accent2); }
+
+.section-body { padding: 1.2rem; }
+
+/* ── Form ──────────────────────────────────────────────── */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.form-group.full { grid-column: 1 / -1; }
+
+label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+input[type="text"], input[type="number"], textarea, select {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--accent);
+}
+
+textarea { resize: vertical; min-height: 60px; }
+
+select {
+  cursor: pointer;
+  appearance: auto;
+}
+
+/* ── Buttons ───────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.2rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  font-family: inherit;
+}
+
+.btn:hover { opacity: 0.85; }
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-secondary { background: var(--accent2); color: #fff; }
+.btn-small {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.btn-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 0.8rem;
+}
+
+/* ── Audio samples ─────────────────────────────────────── */
+.samples-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.sample-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--card);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  transition: border-color 0.2s;
+}
+
+.sample-row.best {
+  border-color: var(--green);
+  box-shadow: 0 0 8px rgba(74, 224, 123, 0.15);
+}
+
+.sample-row .index {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 30px;
+  text-align: center;
+}
+
+.sample-row.best .index { color: var(--green); }
+
+.sample-row audio {
+  flex: 1;
+  height: 32px;
+  min-width: 0;
+}
+
+.sample-row .meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.sample-row .similarity {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.sim-high { background: #1a3a2a; color: var(--green); }
+.sim-mid  { background: #3a3a1a; color: #e0c74a; }
+.sim-low  { background: #3a1a1a; color: var(--red); }
+
+.sample-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+
+/* ── Reference source ──────────────────────────────────── */
+.ref-source {
+  display: flex;
+  gap: 0.8rem;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.ref-option {
+  flex: 1;
+  min-width: 200px;
+  padding: 0.8rem;
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  text-align: center;
+}
+
+.ref-option.active { border-color: var(--accent2); }
+
+.ref-option h4 {
+  font-size: 0.8rem;
+  margin-bottom: 0.4rem;
+  color: var(--accent2);
+}
+
+.ref-preview {
+  margin-top: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ref-preview audio { flex: 1; height: 32px; }
+
+.ref-preview .ref-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ── Spinner / Progress ────────────────────────────────── */
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.progress-text {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.5rem;
+}
+
+/* ── Drop zone ─────────────────────────────────────────── */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--accent2);
+  background: rgba(74, 158, 224, 0.05);
+}
+
+.drop-zone input[type="file"] { display: none; }
+
+.drop-zone p {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* ── Misc ──────────────────────────────────────────────── */
+.hidden { display: none !important; }
+.mt { margin-top: 0.8rem; }
+.error-msg { color: var(--red); font-size: 0.85rem; margin-top: 0.5rem; }
+
+/* ── Use-as-ref radio buttons ──────────────────────────── */
+.use-ref-btn {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.use-ref-btn:hover { border-color: var(--accent); color: var(--accent); }
+.use-ref-btn.selected {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- Header                                                  -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<header>
+  <h1>Voice Studio</h1>
+  <div class="server-bar">
+    <label style="font-size:0.8rem; color:var(--muted)">Server:</label>
+    <input type="text" id="serverUrl" value="http://213.173.96.19:8000"
+           onchange="checkHealth()">
+    <div class="status-dot" id="statusDot" title="Disconnected"></div>
+  </div>
+</header>
+
+<div class="container">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- Section 1: Voice Design (compact)                       -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection('vd')">
+    <h2>Voice Design — Create Reference Voices</h2>
+    <span class="tag tag-compact">Reference</span>
+  </div>
+  <div class="section-body" id="vd-body">
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Text to speak</label>
+        <textarea id="vd-text" rows="2" placeholder="Enter the text you want the voice to say..."></textarea>
+      </div>
+      <div class="form-group full">
+        <label>Style / Voice description</label>
+        <textarea id="vd-style" rows="2" placeholder="e.g. A warm female voice with a gentle, soothing tone, speaking slowly and calmly"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Language</label>
+        <select id="vd-lang">
+          <option value="Auto">Auto</option>
+          <option value="English">English</option>
+          <option value="Chinese">Chinese</option>
+          <option value="Japanese">Japanese</option>
+          <option value="Korean">Korean</option>
+          <option value="French">French</option>
+          <option value="German">German</option>
+          <option value="Spanish">Spanish</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Samples to generate</label>
+        <input type="number" id="vd-n" value="3" min="1" max="10">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="vd-generate" onclick="generateVoiceDesign()">
+        Generate Voices
+      </button>
+      <span class="progress-text hidden" id="vd-progress"></span>
+    </div>
+    <div class="samples-list" id="vd-samples"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- Section 2: Full Pipeline (main)                         -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection('pl')">
+    <h2>Voice-Consistent Pipeline — Emotion + Identity</h2>
+    <span class="tag tag-main">Main</span>
+  </div>
+  <div class="section-body" id="pl-body">
+
+    <!-- Reference source -->
+    <label>Reference Audio (target speaker identity)</label>
+    <div class="ref-source mt">
+      <div class="ref-option active" id="ref-upload-opt" onclick="setRefMode('upload')">
+        <h4>Upload Audio File</h4>
+        <div class="drop-zone" id="drop-zone"
+             ondragover="event.preventDefault(); this.classList.add('dragover')"
+             ondragleave="this.classList.remove('dragover')"
+             ondrop="handleDrop(event)">
+          <input type="file" id="ref-file" accept="audio/*" onchange="handleFileSelect(event)">
+          <p id="drop-label">Drop audio file here or click to browse</p>
+        </div>
+      </div>
+      <div class="ref-option" id="ref-vd-opt" onclick="setRefMode('voicedesign')">
+        <h4>From Voice Design</h4>
+        <select id="ref-vd-select" style="width:100%; margin-top:0.4rem">
+          <option value="">-- Generate voices above first --</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="ref-preview hidden mt" id="ref-preview">
+      <span class="ref-label">Reference:</span>
+      <audio controls id="ref-audio" preload="none"></audio>
+    </div>
+
+    <div class="form-grid mt" style="margin-top:1.2rem">
+      <div class="form-group full">
+        <label>Text to speak</label>
+        <textarea id="pl-text" rows="2" placeholder="Enter the text for the final output..."></textarea>
+      </div>
+      <div class="form-group full">
+        <label>Emotion / Style instruction</label>
+        <textarea id="pl-style" rows="2" placeholder="e.g. Speak with excitement and joy, slightly fast pace, high energy"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Language</label>
+        <select id="pl-lang">
+          <option value="Auto">Auto</option>
+          <option value="English">English</option>
+          <option value="Chinese">Chinese</option>
+          <option value="Japanese">Japanese</option>
+          <option value="Korean">Korean</option>
+          <option value="French">French</option>
+          <option value="German">German</option>
+          <option value="Spanish">Spanish</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Candidates (for ranking)</label>
+        <input type="number" id="pl-k" value="3" min="1" max="10">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="pl-generate" onclick="generatePipeline()">
+        Generate Pipeline
+      </button>
+      <span class="progress-text hidden" id="pl-progress"></span>
+    </div>
+    <div class="samples-list" id="pl-samples"></div>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════
+let voiceDesignSamples = []; // {id, audio_base64, sample_rate, duration}
+let refMode = 'upload';       // 'upload' | 'voicedesign'
+let refAudioB64 = null;       // base64 string of selected reference
+
+// ═══════════════════════════════════════════════════════════
+// Server
+// ═══════════════════════════════════════════════════════════
+function getServer() {
+  return document.getElementById('serverUrl').value.replace(/\/+$/, '');
+}
+
+async function checkHealth() {
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot checking';
+  dot.title = 'Checking...';
+  try {
+    const res = await fetch(getServer() + '/health', { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    if (data.qwen_loaded && data.seed_vc_loaded) {
+      dot.className = 'status-dot connected';
+      dot.title = 'Connected — all models loaded';
+    } else {
+      dot.className = 'status-dot checking';
+      dot.title = 'Connected — some models missing';
+    }
+  } catch {
+    dot.className = 'status-dot';
+    dot.title = 'Disconnected';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Voice Design
+// ═══════════════════════════════════════════════════════════
+async function generateVoiceDesign() {
+  const text = document.getElementById('vd-text').value.trim();
+  const style = document.getElementById('vd-style').value.trim();
+  const lang = document.getElementById('vd-lang').value;
+  const n = parseInt(document.getElementById('vd-n').value) || 3;
+
+  if (!text || !style) return alert('Please enter both text and style description.');
+
+  const btn = document.getElementById('vd-generate');
+  const prog = document.getElementById('vd-progress');
+  btn.disabled = true;
+  prog.classList.remove('hidden');
+  prog.innerHTML = '<span class="spinner"></span> Generating ' + n + ' samples...';
+  document.getElementById('vd-samples').innerHTML = '';
+
+  try {
+    const res = await fetch(getServer() + '/voice-design/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, style_prompt: style, language: lang, n_samples: n }),
+    });
+    const data = await res.json();
+
+    if (data.status !== 'success') throw new Error(data.detail || 'Generation failed');
+
+    voiceDesignSamples = data.samples.filter(s => !s.error);
+    renderVDSamples(data.samples);
+    updateRefSelect();
+  } catch (e) {
+    document.getElementById('vd-samples').innerHTML =
+      '<div class="error-msg">Error: ' + escHtml(e.message) + '</div>';
+  } finally {
+    btn.disabled = false;
+    prog.classList.add('hidden');
+  }
+}
+
+function renderVDSamples(samples) {
+  const list = document.getElementById('vd-samples');
+  list.innerHTML = '';
+  samples.forEach((s, i) => {
+    if (s.error) {
+      list.innerHTML += '<div class="error-msg">Sample ' + (i+1) + ' failed: ' + escHtml(s.error) + '</div>';
+      return;
+    }
+    const row = document.createElement('div');
+    row.className = 'sample-row';
+    row.innerHTML = `
+      <span class="index">#${i+1}</span>
+      <audio controls preload="none">
+        <source src="data:audio/wav;base64,${s.audio_base64}" type="audio/wav">
+      </audio>
+      <span class="meta">${s.duration}s</span>
+      <div class="sample-actions">
+        <button class="btn btn-small btn-primary" onclick="downloadAudio('${s.id}', ${i})" title="Download">DL</button>
+        <button class="use-ref-btn" id="use-ref-${i}" onclick="selectVDAsRef(${i})" title="Use as pipeline reference">Use as Ref</button>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function selectVDAsRef(idx) {
+  // Deselect all
+  document.querySelectorAll('.use-ref-btn').forEach(b => b.classList.remove('selected'));
+  // Select this one
+  const btn = document.getElementById('use-ref-' + idx);
+  if (btn) btn.classList.add('selected');
+
+  const s = voiceDesignSamples[idx];
+  if (!s) return;
+  refAudioB64 = s.audio_base64;
+  setRefMode('voicedesign');
+
+  // Update select dropdown
+  const sel = document.getElementById('ref-vd-select');
+  sel.value = String(idx);
+
+  // Show preview
+  showRefPreview(s.audio_base64);
+}
+
+function downloadAudio(id, idx) {
+  const s = voiceDesignSamples[idx];
+  if (!s) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/wav;base64,' + s.audio_base64;
+  a.download = 'voice_design_' + (idx+1) + '.wav';
+  a.click();
+}
+
+// ═══════════════════════════════════════════════════════════
+// Reference handling
+// ═══════════════════════════════════════════════════════════
+function setRefMode(mode) {
+  refMode = mode;
+  document.getElementById('ref-upload-opt').classList.toggle('active', mode === 'upload');
+  document.getElementById('ref-vd-opt').classList.toggle('active', mode === 'voicedesign');
+
+  if (mode === 'voicedesign') {
+    const sel = document.getElementById('ref-vd-select');
+    const idx = parseInt(sel.value);
+    if (!isNaN(idx) && voiceDesignSamples[idx]) {
+      refAudioB64 = voiceDesignSamples[idx].audio_base64;
+      showRefPreview(refAudioB64);
+    }
+  }
+}
+
+function updateRefSelect() {
+  const sel = document.getElementById('ref-vd-select');
+  sel.innerHTML = '';
+  if (voiceDesignSamples.length === 0) {
+    sel.innerHTML = '<option value="">-- Generate voices above first --</option>';
+    return;
+  }
+  voiceDesignSamples.forEach((s, i) => {
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = 'Sample ' + (i+1) + ' (' + s.duration + 's)';
+    sel.appendChild(opt);
+  });
+  sel.onchange = () => {
+    const idx = parseInt(sel.value);
+    if (!isNaN(idx) && voiceDesignSamples[idx]) {
+      refAudioB64 = voiceDesignSamples[idx].audio_base64;
+      showRefPreview(refAudioB64);
+      // Update use-ref buttons
+      document.querySelectorAll('.use-ref-btn').forEach(b => b.classList.remove('selected'));
+      const btn = document.getElementById('use-ref-' + idx);
+      if (btn) btn.classList.add('selected');
+    }
+  };
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) loadRefFile(file);
+}
+
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) loadRefFile(file);
+}
+
+function loadRefFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    // result is data:audio/...;base64,XXXX
+    refAudioB64 = reader.result.split(',')[1];
+    document.getElementById('drop-label').textContent = file.name;
+    setRefMode('upload');
+    showRefPreview(refAudioB64);
+  };
+  reader.readAsDataURL(file);
+}
+
+function showRefPreview(b64) {
+  const preview = document.getElementById('ref-preview');
+  const audio = document.getElementById('ref-audio');
+  preview.classList.remove('hidden');
+  audio.src = 'data:audio/wav;base64,' + b64;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Full Pipeline (ranked) — uses SSE streaming
+//
+// Instead of waiting for all K candidates to finish, we POST to
+// /pipeline/ranked-stream and read the response as a stream of
+// Server-Sent Events.  Each "candidate" event carries one result
+// which we render immediately.  The final "done" event carries
+// the best_id so we can highlight the winner.
+// ═══════════════════════════════════════════════════════════
+
+// Accumulated pipeline candidates (stored for download buttons)
+let pipelineCandidates = [];
+
+async function generatePipeline() {
+  const text = document.getElementById('pl-text').value.trim();
+  const style = document.getElementById('pl-style').value.trim();
+  const lang = document.getElementById('pl-lang').value;
+  const k = parseInt(document.getElementById('pl-k').value) || 3;
+
+  if (!text || !style) return alert('Please enter both text and emotion/style instruction.');
+  if (!refAudioB64) return alert('Please select or upload a reference audio first.');
+
+  const btn = document.getElementById('pl-generate');
+  const prog = document.getElementById('pl-progress');
+  const list = document.getElementById('pl-samples');
+
+  btn.disabled = true;
+  prog.classList.remove('hidden');
+  prog.innerHTML = '<span class="spinner"></span> Generating ' + k + ' TTS samples (batched)...';
+  list.innerHTML = '';
+  pipelineCandidates = [];
+
+  try {
+    // ── Open SSE stream via POST fetch ────────────────────────────
+    const res = await fetch(getServer() + '/pipeline/ranked-stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text,
+        style_prompt: style,
+        language: lang,
+        reference_audio_base64: refAudioB64,
+        k_candidates: k,
+      }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || `HTTP ${res.status}`);
+    }
+
+    // ── Read the response body as a text stream ───────────────────
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';       // partial SSE data accumulator
+    let received = 0;      // count of candidates received so far
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE events are separated by double newlines.  Parse them out
+      // of the buffer as they arrive.
+      let boundary;
+      while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+        const block = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+
+        // Parse "event: <type>\ndata: <json>" format
+        const eventMatch = block.match(/^event:\s*(\w+)\ndata:\s*(.+)$/s);
+        if (!eventMatch) continue;
+
+        const eventType = eventMatch[1];
+        let payload;
+        try { payload = JSON.parse(eventMatch[2]); }
+        catch { continue; }
+
+        if (eventType === 'progress') {
+          // TTS batch completed — all K TTS outputs generated, now
+          // converting voices one at a time. Update progress text.
+          if (payload._progress === 'tts_batch_complete') {
+            prog.innerHTML = '<span class="spinner"></span> TTS batch done (' +
+              payload.count + ' samples in ' + payload.tts_time + 's). ' +
+              'Converting voices (0/' + k + ')...';
+          }
+
+        } else if (eventType === 'candidate') {
+          received++;
+          pipelineCandidates.push(payload);
+          // Render this candidate immediately (unsorted — arrival order)
+          appendPipelineCandidate(payload, received);
+          prog.innerHTML = '<span class="spinner"></span> Converting voices (' +
+            received + '/' + k + ')...';
+
+        } else if (eventType === 'done') {
+          // Re-sort and highlight the best candidate
+          finalizePipelineResults(payload.best_id);
+        }
+      }
+    }
+
+    // If we never got a "done" event, finalize with what we have
+    if (pipelineCandidates.length > 0) {
+      const valid = pipelineCandidates.filter(c => !c.error);
+      valid.sort((a, b) => b.similarity - a.similarity);
+      if (valid.length > 0) finalizePipelineResults(valid[0].id);
+    }
+
+  } catch (e) {
+    list.innerHTML += '<div class="error-msg">Error: ' + escHtml(e.message) + '</div>';
+  } finally {
+    btn.disabled = false;
+    prog.classList.add('hidden');
+  }
+}
+
+/**
+ * Append a single candidate row to the pipeline results list.
+ * Called as each SSE "candidate" event arrives.
+ */
+function appendPipelineCandidate(c, displayIdx) {
+  const list = document.getElementById('pl-samples');
+
+  if (c.error) {
+    list.innerHTML += '<div class="error-msg">Candidate ' +
+      (c.index + 1) + ' failed: ' + escHtml(c.error) + '</div>';
+    return;
+  }
+
+  const simClass = c.similarity >= 0.85 ? 'sim-high'
+                 : c.similarity >= 0.7  ? 'sim-mid'
+                 : 'sim-low';
+
+  const row = document.createElement('div');
+  row.className = 'sample-row';
+  row.dataset.candidateId = c.id;
+  row.innerHTML = `
+    <span class="index">#${displayIdx}</span>
+    <audio controls preload="none">
+      <source src="data:audio/wav;base64,${c.audio_base64}" type="audio/wav">
+    </audio>
+    <span class="similarity ${simClass}">${(c.similarity * 100).toFixed(1)}%</span>
+    <span class="meta">${c.duration}s</span>
+    <div class="sample-actions">
+      <button class="btn btn-small btn-secondary"
+              onclick="downloadPipelineAudio('${c.id}', false)" title="Download final">DL</button>
+      <button class="btn btn-small"
+              style="background:var(--card);color:var(--muted);border:1px solid var(--border)"
+              onclick="downloadPipelineAudio('${c.id}', true)"
+              title="Download intermediate TTS (before VC)">TTS</button>
+    </div>
+  `;
+  list.appendChild(row);
+}
+
+/**
+ * After all candidates are received, re-sort them by similarity
+ * and highlight the best one with a green border + star.
+ */
+function finalizePipelineResults(bestId) {
+  const list = document.getElementById('pl-samples');
+  const rows = Array.from(list.querySelectorAll('.sample-row'));
+
+  // Sort rows by similarity (highest first) using the stored data
+  const valid = pipelineCandidates.filter(c => !c.error);
+  valid.sort((a, b) => b.similarity - a.similarity);
+
+  // Re-order DOM nodes and update indices + best highlight
+  valid.forEach((c, i) => {
+    const row = rows.find(r => r.dataset.candidateId === c.id);
+    if (!row) return;
+
+    // Move to end (builds sorted order)
+    list.appendChild(row);
+
+    // Update index label
+    const isBest = c.id === bestId;
+    row.querySelector('.index').textContent = (isBest ? '\u2605 ' : '') + '#' + (i + 1);
+    row.classList.toggle('best', isBest);
+  });
+}
+
+/**
+ * Download a pipeline candidate's audio by its ID.
+ * @param {string} id - candidate ID
+ * @param {boolean} intermediate - if true, download the pre-VC TTS audio
+ */
+function downloadPipelineAudio(id, intermediate) {
+  const c = pipelineCandidates.find(x => x.id === id);
+  if (!c) return;
+
+  const a = document.createElement('a');
+  if (intermediate && c.intermediate_tts_base64) {
+    a.href = 'data:audio/wav;base64,' + c.intermediate_tts_base64;
+    a.download = 'pipeline_tts_' + c.id + '.wav';
+  } else {
+    a.href = 'data:audio/wav;base64,' + c.audio_base64;
+    a.download = 'pipeline_final_' + c.id + '.wav';
+  }
+  a.click();
+}
+
+// ═══════════════════════════════════════════════════════════
+// Utilities
+// ═══════════════════════════════════════════════════════════
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function toggleSection(id) {
+  const body = document.getElementById(id + '-body');
+  body.classList.toggle('hidden');
+}
+
+// Drop zone click → trigger file input
+document.getElementById('drop-zone').addEventListener('click', (e) => {
+  if (e.target.tagName !== 'INPUT') {
+    document.getElementById('ref-file').click();
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════════
+checkHealth();
+setInterval(checkHealth, 30000);
+</script>
+</body>
+</html>
