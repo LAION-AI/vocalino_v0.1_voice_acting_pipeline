@@ -208,6 +208,7 @@ CUDA_VISIBLE_DEVICES=0,1 VC_DEVICE=cuda:1 python server.py
 ---
 
 ## Web UI
+<img width="1335" height="853" alt="image" src="https://github.com/user-attachments/assets/6e0ff245-5e45-4dc1-808d-e675a2b92aad" />
 
 The web UI is served at `/ui` and provides two sections:
 
@@ -425,3 +426,4 @@ Model loading takes 1-2 minutes. Wait for "Models loaded. Server ready."
 - [Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) — Apache 2.0
 - [Seed-VC](https://github.com/Plachtaa/seed-vc) — MIT
 - This pipeline code — MIT
+
