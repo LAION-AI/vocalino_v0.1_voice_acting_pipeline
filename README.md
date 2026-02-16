@@ -1,7 +1,7 @@
 # Vocalino V 0.1: Voice Acting Pipeline
 *By <a href="https://scholar.google.com/citations?user=EvrlaSAAAAAJ">Christoph Schuhmann </a>*
 
-**The first fully open-source voice acting pipeline that combines zero-shot voice cloning with natural language performance direction.** Vocalino allows you to provide a reference voice (or generate one from scratch) and use free-form text instructions to direct *how* the line is performed. It generates speech that maintains strict voice consistency with your reference audio while adhering to your specific emotional and stylistic prompts—giving you total control over the actor and the performance without any model training.
+**The first voice acting pipeline with open-weights components and open post training data that combines zero-shot voice cloning with natural language performance direction.** Vocalino allows you to provide a reference voice (or generate one from scratch) and use free-form text instructions to direct *how* the line is performed. It generates speech that maintains strict voice consistency with your reference audio while adhering to your specific emotional and stylistic prompts—giving you total control over the actor and the performance without any model training.
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=bOA9e5p1Oy0">
@@ -18,9 +18,9 @@
 
 ### The Concept: "Directing" AI Speech
 
-Vocalino v0.1 was built to solve the limitation of existing open-source audio models. Standard Text-to-Speech (TTS) can generate emotions but usually with random voices. Standard Voice Conversion (VC) can clone a specific person but requires pre-acted source audio.
+Vocalino v0.1 was built to solve the limitation of existing open-weights and open-source audio models. Standard Text-to-Speech (TTS) can generate emotions but usually with random voices. Standard Voice Conversion (VC) can clone a specific person but requires pre-acted source audio.
 
-To our knowledge, Vocalino is the **first open pipeline** that decouples **vocal identity** from **performance style**. By chaining advanced stylistic generation with high-fidelity voice conversion, Vocalino lets you "cast" an actor (via a reference clip) and "direct" them (via text prompts like *"whisper with trembling fear"* or *"shout with overwhelming joy"*). The result is a unified audio file that sounds like your target speaker performing exactly the way you instructed.
+To our knowledge, Vocalino is the **first open pipeline** (using open-weights models and open post-training data) that decouples **vocal identity** from **performance style**. By chaining advanced stylistic generation with high-fidelity voice conversion, Vocalino lets you "cast" an actor (via a reference clip) and "direct" them (via text prompts like *"whisper with trembling fear"* or *"shout with overwhelming joy"*). The result is a unified audio file that sounds like your target speaker performing exactly the way you instructed.
 
 ### Architecture
 
@@ -426,4 +426,5 @@ Model loading takes 1-2 minutes. Wait for "Models loaded. Server ready."
 - [Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) — Apache 2.0
 - [Seed-VC](https://github.com/Plachtaa/seed-vc) — MIT
 - This pipeline code — MIT
+
 
